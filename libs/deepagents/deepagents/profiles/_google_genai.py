@@ -7,7 +7,7 @@
 
 Provider-wide and per-model helpers for the ``google_genai`` harness profile.
 The provider profile applies to all ``google_genai:*`` models; the Gemini 3.1
-Pro helpers layer on top to exercise every `HarnessProfile` field as a sample
+Pro helpers layer on top to exercise every `_HarnessProfile` field as a sample
 reference implementation.
 """
 
@@ -18,6 +18,8 @@ from importlib.metadata import PackageNotFoundError, version as pkg_version
 from typing import TYPE_CHECKING, Any
 
 from packaging.version import InvalidVersion, Version
+
+from deepagents.profiles._harness_profiles import _HarnessProfile, _register_harness_profile
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -66,7 +68,7 @@ def check_google_genai_version(spec: str) -> None:  # noqa: ARG001 — required 
 # ---------------------------------------------------------------------------
 
 
-def gemini31_pro_dynamic_kwargs() -> dict[str, Any]:
+def _gemini31_pro_dynamic_kwargs() -> dict[str, Any]:
     """Build dynamic init kwargs for Gemini 3.1 Pro.
 
     Reads ``GOOGLE_GENAI_SAFETY_THRESHOLD`` from the environment at init time
@@ -82,7 +84,7 @@ def gemini31_pro_dynamic_kwargs() -> dict[str, Any]:
     return kwargs
 
 
-def gemini31_pro_extra_middleware() -> Sequence[AgentMiddleware]:
+def _gemini31_pro_extra_middleware() -> Sequence[AgentMiddleware]:
     """Build Gemini 3.1 Pro-specific middleware (deferred import).
 
     Returns a `PatchToolCallsMiddleware` as a stand-in — a real profile would
@@ -97,7 +99,7 @@ def gemini31_pro_extra_middleware() -> Sequence[AgentMiddleware]:
     return [PatchToolCallsMiddleware()]
 
 
-GEMINI31_PRO_BASE_SYSTEM_PROMPT = """\
+_GEMINI31_PRO_BASE_SYSTEM_PROMPT = """\
 You are a Deep Agent powered by Gemini 3.1 Pro.
 
 Be concise. Act, don't narrate. Batch independent tool calls."""
@@ -106,3 +108,45 @@ Be concise. Act, don't narrate. Batch independent tool calls."""
 A real profile might trim the default prompt for models that follow
 instructions well with less scaffolding.
 """
+
+# ---------------------------------------------------------------------------
+# Profile registration
+# ---------------------------------------------------------------------------
+
+# Provider-wide defaults for all google_genai:* models. Per-model profiles
+# inherit these via the merge mechanism.
+_register_harness_profile(
+    "google_genai",
+    _HarnessProfile(
+        # convert_system_message_to_human: older Gemini models required this;
+        # modern ones handle system messages natively.
+        init_kwargs={"convert_system_message_to_human": False},
+        # pre_init: version gate — runs before init_chat_model.
+        pre_init=check_google_genai_version,
+    ),
+)
+
+# Layered on top of the "google_genai" provider profile — inherits
+# convert_system_message_to_human=False and the version gate via the merge
+# mechanism.
+_register_harness_profile(
+    "google_genai:gemini-3.1-pro",
+    _HarnessProfile(
+        # init_kwargs_factory: deferred kwargs from env vars.
+        init_kwargs_factory=_gemini31_pro_dynamic_kwargs,
+        # base_system_prompt: replaces BASE_AGENT_PROMPT entirely.
+        base_system_prompt=_GEMINI31_PRO_BASE_SYSTEM_PROMPT,
+        # system_prompt_suffix: appended after base_system_prompt.
+        system_prompt_suffix=(
+            "You have access to parallel tool execution. "
+            "When multiple tool calls are independent, batch them "
+            "into a single response to minimize round-trips."
+        ),
+        # tool_description_overrides: per-tool rewrites.
+        tool_description_overrides={
+            "task": "Delegate a subtask to a specialized subagent. Prefer launching independent subtasks concurrently.",
+        },
+        # extra_middleware: appended to every middleware stack.
+        extra_middleware=_gemini31_pro_extra_middleware,
+    ),
+)

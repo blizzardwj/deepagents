@@ -5,7 +5,7 @@
     This is an internal API subject to change without deprecation. It is not
     intended for external use or consumption.
 
-Defines the `HarnessProfile` dataclass and the harness profile registry used
+Defines the `_HarnessProfile` dataclass and the harness profile registry used
 by `resolve_model` and `create_deep_agent` to apply provider- and model-specific
 configuration.
 """
@@ -15,38 +15,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from deepagents._google_genai import (
-    GEMINI31_PRO_BASE_SYSTEM_PROMPT,
-    check_google_genai_version,
-    gemini31_pro_dynamic_kwargs,
-    gemini31_pro_extra_middleware,
-)
-from deepagents._openrouter import (
-    _openrouter_attribution_kwargs,
-    check_openrouter_version,
-)
-
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from langchain.agents.middleware.types import AgentMiddleware
 
 # ---------------------------------------------------------------------------
-# HarnessProfile — declarative model/provider customization
+# _HarnessProfile — declarative model/provider customization
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class HarnessProfile:
+class _HarnessProfile:
     """Declarative configuration for the Deep Agent harness.
 
     Applied based on the selected model or provider. Each field is optional —
     its default means "no change from baseline behavior". Profiles are looked
-    up by `get_harness_profile` (exact model spec first, then provider prefix)
+    up by `_get_harness_profile` (exact model spec first, then provider prefix)
     and consumed by `resolve_model` (for `init_kwargs` / `pre_init`) and
     `create_deep_agent` (for everything else).
 
-    Register profiles via `register_harness_profile`.
+    Register profiles via `_register_harness_profile`.
     """
 
     init_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -125,8 +114,8 @@ class HarnessProfile:
 # Profile registry
 # ---------------------------------------------------------------------------
 
-_HARNESS_PROFILES: dict[str, HarnessProfile] = {}
-"""Registry mapping profile keys to `HarnessProfile` instances.
+_HARNESS_PROFILES: dict[str, _HarnessProfile] = {}
+"""Registry mapping profile keys to `_HarnessProfile` instances.
 
 Keys are either a full `provider:model` spec (for per-model overrides) or a
 bare provider name (for provider-wide defaults).  Lookup order:
@@ -134,8 +123,8 @@ exact spec → provider prefix → empty default.
 """
 
 
-def register_harness_profile(key: str, profile: HarnessProfile) -> None:
-    """Register a `HarnessProfile` for a provider or specific model.
+def _register_harness_profile(key: str, profile: _HarnessProfile) -> None:
+    """Register a `_HarnessProfile` for a provider or specific model.
 
     Args:
         key: A provider name (e.g. `"openai"`) for provider-wide defaults,
@@ -146,15 +135,15 @@ def register_harness_profile(key: str, profile: HarnessProfile) -> None:
     _HARNESS_PROFILES[key] = profile
 
 
-def get_harness_profile(spec: str) -> HarnessProfile:
-    """Look up the `HarnessProfile` for a model spec.
+def _get_harness_profile(spec: str) -> _HarnessProfile:
+    """Look up the `_HarnessProfile` for a model spec.
 
     Resolution order:
 
     1. Exact match on `spec` (supports per-model overrides).
     2. Provider prefix (everything before the first `:`; for bare names
         without a colon, the full string is used).
-    3. A default empty `HarnessProfile`.
+    3. A default empty `_HarnessProfile`.
 
     When both an exact-model profile and a provider-level profile exist, they
     are merged: the provider profile serves as the base and the exact-model
@@ -166,7 +155,7 @@ def get_harness_profile(spec: str) -> HarnessProfile:
         spec: Model spec in `provider:model` format, or a bare model name.
 
     Returns:
-        The matching `HarnessProfile`, or an empty default.
+        The matching `_HarnessProfile`, or an empty default.
     """
     exact = _HARNESS_PROFILES.get(spec)
 
@@ -179,7 +168,7 @@ def get_harness_profile(spec: str) -> HarnessProfile:
         return exact
     if base is not None:
         return base
-    return HarnessProfile()
+    return _HarnessProfile()
 
 
 def _resolve_middleware_seq(
@@ -235,7 +224,7 @@ def _merge_middleware(
     return factory
 
 
-def _merge_profiles(base: HarnessProfile, override: HarnessProfile) -> HarnessProfile:
+def _merge_profiles(base: _HarnessProfile, override: _HarnessProfile) -> _HarnessProfile:
     """Merge two profiles, layering `override` on top of `base`.
 
     Dict fields are merged (override wins per-key). Callables (`pre_init`,
@@ -250,7 +239,7 @@ def _merge_profiles(base: HarnessProfile, override: HarnessProfile) -> HarnessPr
         override: Exact-model profile (higher priority).
 
     Returns:
-        A new merged `HarnessProfile`.
+        A new merged `_HarnessProfile`.
     """
     # Chain pre_init callables
     if base.pre_init is not None and override.pre_init is not None:
@@ -279,7 +268,7 @@ def _merge_profiles(base: HarnessProfile, override: HarnessProfile) -> HarnessPr
     else:
         init_kwargs_factory = override.init_kwargs_factory or base.init_kwargs_factory
 
-    return HarnessProfile(
+    return _HarnessProfile(
         init_kwargs={**base.init_kwargs, **override.init_kwargs},
         pre_init=pre_init,
         init_kwargs_factory=init_kwargs_factory,
@@ -292,68 +281,3 @@ def _merge_profiles(base: HarnessProfile, override: HarnessProfile) -> HarnessPr
         excluded_tools=base.excluded_tools | override.excluded_tools,
         extra_middleware=_merge_middleware(base.extra_middleware, override.extra_middleware),
     )
-
-
-# ---------------------------------------------------------------------------
-# Built-in harness profiles
-# ---------------------------------------------------------------------------
-
-
-register_harness_profile(
-    "openai",
-    HarnessProfile(init_kwargs={"use_responses_api": True}),
-)
-
-register_harness_profile(
-    "openrouter",
-    HarnessProfile(
-        pre_init=lambda _spec: check_openrouter_version(),
-        init_kwargs_factory=_openrouter_attribution_kwargs,
-    ),
-)
-
-# ---------------------------------------------------------------------------
-# Google GenAI provider profile
-# ---------------------------------------------------------------------------
-# Provider-wide defaults for all google_genai:* models. Per-model profiles
-# inherit these via the merge mechanism.
-
-register_harness_profile(
-    "google_genai",
-    HarnessProfile(
-        # convert_system_message_to_human: older Gemini models required this;
-        # modern ones handle system messages natively.
-        init_kwargs={"convert_system_message_to_human": False},
-        # pre_init: version gate — runs before init_chat_model.
-        pre_init=check_google_genai_version,
-    ),
-)
-
-# ---------------------------------------------------------------------------
-# Gemini 3.1 Pro per-model profile (toy / sample implementation)
-# ---------------------------------------------------------------------------
-# Layered on top of the "google_genai" provider profile — inherits
-# convert_system_message_to_human=False and the version gate via the merge
-# mechanism.
-
-register_harness_profile(
-    "google_genai:gemini-3.1-pro",
-    HarnessProfile(
-        # init_kwargs_factory: deferred kwargs from env vars.
-        init_kwargs_factory=gemini31_pro_dynamic_kwargs,
-        # base_system_prompt: replaces BASE_AGENT_PROMPT entirely.
-        base_system_prompt=GEMINI31_PRO_BASE_SYSTEM_PROMPT,
-        # system_prompt_suffix: appended after base_system_prompt.
-        system_prompt_suffix=(
-            "You have access to parallel tool execution. "
-            "When multiple tool calls are independent, batch them "
-            "into a single response to minimize round-trips."
-        ),
-        # tool_description_overrides: per-tool rewrites.
-        tool_description_overrides={
-            "task": "Delegate a subtask to a specialized subagent. Prefer launching independent subtasks concurrently.",
-        },
-        # extra_middleware: appended to every middleware stack.
-        extra_middleware=gemini31_pro_extra_middleware,
-    ),
-)
