@@ -5,9 +5,10 @@
     This is an internal API subject to change without deprecation. It is not
     intended for external use or consumption.
 
-Sample per-model harness profile for ``google_genai:gemini-3.1-pro`` that
-exercises every `HarnessProfile` field. Intended as a reference implementation
-— a real profile would replace the placeholder values with production logic.
+Provider-wide and per-model helpers for the ``google_genai`` harness profile.
+The provider profile applies to all ``google_genai:*`` models; the Gemini 3.1
+Pro helpers layer on top to exercise every `HarnessProfile` field as a sample
+reference implementation.
 """
 
 from __future__ import annotations
@@ -23,13 +24,16 @@ if TYPE_CHECKING:
 
     from langchain.agents.middleware.types import AgentMiddleware
 
+# ---------------------------------------------------------------------------
+# Provider-wide helpers (google_genai)
+# ---------------------------------------------------------------------------
 
-GEMINI31_PRO_MIN_LANGCHAIN_GOOGLE_GENAI = "4.2.1"
-"""Minimum `langchain-google-genai` version required for Gemini 3.1 Pro."""
+GOOGLE_GENAI_MIN_VERSION = "4.2.1"
+"""Minimum `langchain-google-genai` version required for the provider."""
 
 
-def check_langchain_google_genai_for_gemini31(spec: str) -> None:  # noqa: ARG001 — required by `pre_init` signature
-    """Raise if `langchain-google-genai` is below the minimum for Gemini 3.1 Pro.
+def check_google_genai_version(spec: str) -> None:  # noqa: ARG001 — required by `pre_init` signature
+    """Raise if `langchain-google-genai` is below the minimum version.
 
     Skipped when the package is not installed at all; `init_chat_model`
     will surface its own missing-dependency error downstream.
@@ -45,17 +49,21 @@ def check_langchain_google_genai_for_gemini31(spec: str) -> None:  # noqa: ARG00
     except PackageNotFoundError:
         return
     try:
-        is_old = Version(installed) < Version(GEMINI31_PRO_MIN_LANGCHAIN_GOOGLE_GENAI)
+        is_old = Version(installed) < Version(GOOGLE_GENAI_MIN_VERSION)
     except InvalidVersion:
         return
     if is_old:
         msg = (
-            f"google_genai:gemini-3.1-pro requires "
-            f"langchain-google-genai>={GEMINI31_PRO_MIN_LANGCHAIN_GOOGLE_GENAI}, "
+            f"deepagents requires langchain-google-genai>={GOOGLE_GENAI_MIN_VERSION}, "
             f"but {installed} is installed. "
-            f"Run: pip install 'langchain-google-genai>={GEMINI31_PRO_MIN_LANGCHAIN_GOOGLE_GENAI}'"
+            f"Run: pip install 'langchain-google-genai>={GOOGLE_GENAI_MIN_VERSION}'"
         )
         raise ImportError(msg)
+
+
+# ---------------------------------------------------------------------------
+# Gemini 3.1 Pro per-model helpers (toy / sample implementation)
+# ---------------------------------------------------------------------------
 
 
 def gemini31_pro_dynamic_kwargs() -> dict[str, Any]:

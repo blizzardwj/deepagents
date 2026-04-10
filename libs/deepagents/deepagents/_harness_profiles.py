@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from deepagents._google_genai import (
     GEMINI31_PRO_BASE_SYSTEM_PROMPT,
-    check_langchain_google_genai_for_gemini31,
+    check_google_genai_version,
     gemini31_pro_dynamic_kwargs,
     gemini31_pro_extra_middleware,
 )
@@ -313,18 +313,32 @@ register_harness_profile(
 )
 
 # ---------------------------------------------------------------------------
+# Google GenAI provider profile
+# ---------------------------------------------------------------------------
+# Provider-wide defaults for all google_genai:* models. Per-model profiles
+# inherit these via the merge mechanism.
+
+register_harness_profile(
+    "google_genai",
+    HarnessProfile(
+        # convert_system_message_to_human: older Gemini models required this;
+        # modern ones handle system messages natively.
+        init_kwargs={"convert_system_message_to_human": False},
+        # pre_init: version gate — runs before init_chat_model.
+        pre_init=check_google_genai_version,
+    ),
+)
+
+# ---------------------------------------------------------------------------
 # Gemini 3.1 Pro per-model profile (toy / sample implementation)
 # ---------------------------------------------------------------------------
-# Layered on top of a future "google_genai" provider profile if one is
-# registered — currently stands alone.
+# Layered on top of the "google_genai" provider profile — inherits
+# convert_system_message_to_human=False and the version gate via the merge
+# mechanism.
 
 register_harness_profile(
     "google_genai:gemini-3.1-pro",
     HarnessProfile(
-        # init_kwargs: static kwargs forwarded to init_chat_model.
-        init_kwargs={"convert_system_message_to_human": False},
-        # pre_init: version gate — runs before init_chat_model.
-        pre_init=check_langchain_google_genai_for_gemini31,
         # init_kwargs_factory: deferred kwargs from env vars.
         init_kwargs_factory=gemini31_pro_dynamic_kwargs,
         # base_system_prompt: replaces BASE_AGENT_PROMPT entirely.
