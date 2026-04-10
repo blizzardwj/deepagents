@@ -15,6 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from deepagents._google_genai import (
+    GEMINI31_PRO_BASE_SYSTEM_PROMPT,
+    check_langchain_google_genai_for_gemini31,
+    gemini31_pro_dynamic_kwargs,
+    gemini31_pro_extra_middleware,
+)
 from deepagents._openrouter import (
     _openrouter_attribution_kwargs,
     check_openrouter_version,
@@ -303,5 +309,37 @@ register_harness_profile(
     HarnessProfile(
         pre_init=lambda _spec: check_openrouter_version(),
         init_kwargs_factory=_openrouter_attribution_kwargs,
+    ),
+)
+
+# ---------------------------------------------------------------------------
+# Gemini 3.1 Pro per-model profile (toy / sample implementation)
+# ---------------------------------------------------------------------------
+# Layered on top of a future "google_genai" provider profile if one is
+# registered — currently stands alone.
+
+register_harness_profile(
+    "google_genai:gemini-3.1-pro",
+    HarnessProfile(
+        # init_kwargs: static kwargs forwarded to init_chat_model.
+        init_kwargs={"convert_system_message_to_human": False},
+        # pre_init: version gate — runs before init_chat_model.
+        pre_init=check_langchain_google_genai_for_gemini31,
+        # init_kwargs_factory: deferred kwargs from env vars.
+        init_kwargs_factory=gemini31_pro_dynamic_kwargs,
+        # base_system_prompt: replaces BASE_AGENT_PROMPT entirely.
+        base_system_prompt=GEMINI31_PRO_BASE_SYSTEM_PROMPT,
+        # system_prompt_suffix: appended after base_system_prompt.
+        system_prompt_suffix=(
+            "You have access to parallel tool execution. "
+            "When multiple tool calls are independent, batch them "
+            "into a single response to minimize round-trips."
+        ),
+        # tool_description_overrides: per-tool rewrites.
+        tool_description_overrides={
+            "task": "Delegate a subtask to a specialized subagent. Prefer launching independent subtasks concurrently.",
+        },
+        # extra_middleware: appended to every middleware stack.
+        extra_middleware=gemini31_pro_extra_middleware,
     ),
 )
