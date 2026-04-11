@@ -1,13 +1,12 @@
-"""Google GenAI provider helpers.
+"""Google GenAI provider profile and helpers.
 
 !!! warning
 
     This is an internal API subject to change without deprecation. It is not
     intended for external use or consumption.
 
-Provider-wide and per-model helpers for the ``google_genai`` harness profile.
-The provider profile applies to all ``google_genai:*`` models; the Gemini 3.1
-Pro helpers layer on top to exercise every `_HarnessProfile` field as a sample
+The provider profile applies to all `google_genai:*` models; the Gemini 3.1 Pro
+helpers layer on top to exercise every `_HarnessProfile` field as a sample
 reference implementation.
 """
 
@@ -37,8 +36,8 @@ GOOGLE_GENAI_MIN_VERSION = "4.2.1"
 def check_google_genai_version(spec: str) -> None:  # noqa: ARG001 — required by `pre_init` signature
     """Raise if `langchain-google-genai` is below the minimum version.
 
-    Skipped when the package is not installed at all; `init_chat_model`
-    will surface its own missing-dependency error downstream.
+    Skipped when the package is not installed at all; `init_chat_model` will
+    surface its own missing-dependency error downstream.
 
     Args:
         spec: Raw model spec string (unused; required by `pre_init` signature).
@@ -71,11 +70,11 @@ def check_google_genai_version(spec: str) -> None:  # noqa: ARG001 — required 
 def _gemini31_pro_dynamic_kwargs() -> dict[str, Any]:
     """Build dynamic init kwargs for Gemini 3.1 Pro.
 
-    Reads ``GOOGLE_GENAI_SAFETY_THRESHOLD`` from the environment at init time
-    so operators can adjust safety-filter strictness without touching code.
+    Reads `GOOGLE_GENAI_SAFETY_THRESHOLD` from the environment at init time so
+    operators can adjust safety-filter strictness without touching code.
 
     Returns:
-        Dictionary of kwargs to merge on top of ``init_kwargs``.
+        Dictionary of kwargs to merge on top of `init_kwargs`.
     """
     kwargs: dict[str, Any] = {}
     threshold = os.environ.get("GOOGLE_GENAI_SAFETY_THRESHOLD")
@@ -105,8 +104,8 @@ You are a Deep Agent powered by Gemini 3.1 Pro.
 Be concise. Act, don't narrate. Batch independent tool calls."""
 """Compact base prompt replacing `BASE_AGENT_PROMPT` for Gemini 3.1 Pro.
 
-A real profile might trim the default prompt for models that follow
-instructions well with less scaffolding.
+A real profile might trim the default prompt for models that follow instructions
+well with less scaffolding.
 """
 
 # ---------------------------------------------------------------------------
@@ -118,8 +117,7 @@ instructions well with less scaffolding.
 _register_harness_profile(
     "google_genai",
     _HarnessProfile(
-        # convert_system_message_to_human: older Gemini models required this;
-        # modern ones handle system messages natively.
+        # dummy kwarg for ChatGoogleGenerativeAI
         init_kwargs={"convert_system_message_to_human": False},
         # pre_init: version gate — runs before init_chat_model.
         pre_init=check_google_genai_version,
@@ -128,7 +126,6 @@ _register_harness_profile(
 
 # Layered on top of the "google_genai" provider profile — inherits
 # convert_system_message_to_human=False and the version gate via the merge
-# mechanism.
 _register_harness_profile(
     "google_genai:gemini-3.1-pro",
     _HarnessProfile(
@@ -148,5 +145,7 @@ _register_harness_profile(
         },
         # extra_middleware: appended to every middleware stack.
         extra_middleware=_gemini31_pro_extra_middleware,
+        # If you were to define init_kwargs or pre_init here, they would
+        # override the provider profile's values instead of merging
     ),
 )
