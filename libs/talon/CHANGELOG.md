@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.7](https://github.com/blizzardwj/deepagents/compare/deepagents-talon==0.0.6...deepagents-talon==0.0.7) (2026-08-31)
+
+
+### Features
+
+* **code,talon:** require Python 3.12 or greater ([#5603](https://github.com/blizzardwj/deepagents/issues/5603)) ([04de43e](https://github.com/blizzardwj/deepagents/commit/04de43e05adcbd38f1022f1fafe93f6748c2a032))
+* **talon:** add channel debug logging ([#5983](https://github.com/blizzardwj/deepagents/issues/5983)) ([1c14626](https://github.com/blizzardwj/deepagents/commit/1c14626d068ee5e1724d53dc17927d37987ebe36))
+* **talon:** add opt-in agent activity logging ([#5984](https://github.com/blizzardwj/deepagents/issues/5984)) ([3a0f68c](https://github.com/blizzardwj/deepagents/commit/3a0f68ccd08166394e02fd736869482be5759f83))
+
+
+### Bug Fixes
+
+* **talon:** drop extract-zip from the WhatsApp bridge dependency tree ([#5924](https://github.com/blizzardwj/deepagents/issues/5924)) ([7301d01](https://github.com/blizzardwj/deepagents/commit/7301d01e483d0b76745c725134ec09db82f38856))
+* **talon:** migrate MCP discovery to `discover_mcp_config_sources` ([#5803](https://github.com/blizzardwj/deepagents/issues/5803)) ([5cdd977](https://github.com/blizzardwj/deepagents/commit/5cdd97730708b0480cb7d32792717dcdcd02f4ea))
+* **talon:** restore WhatsApp bridge compatibility ([#5999](https://github.com/blizzardwj/deepagents/issues/5999)) ([568b398](https://github.com/blizzardwj/deepagents/commit/568b398df9b9f4f3464b4107c0ef9001f530d728))
+
 ## [0.0.6](https://github.com/langchain-ai/deepagents/compare/deepagents-talon==0.0.5...deepagents-talon==0.0.6) (2026-08-28)
 
 ### Bug Fixes
